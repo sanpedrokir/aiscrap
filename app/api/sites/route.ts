@@ -1,12 +1,6 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/prisma";
-import {
-  CATEGORIES,
-  analyzeSnapshot,
-  extractStructured,
-  fetchPage,
-  type Category,
-} from "@/lib/scrape";
+import { analyzeSnapshot, detectCategory, extractStructured, fetchPage } from "@/lib/scrape";
 
 export async function GET() {
   let sites;
@@ -47,11 +41,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const body = await request.json();
-  const { url, category, customFields } = body as {
-    url?: string;
-    category?: string;
-    customFields?: string[];
-  };
+  const { url } = body as { url?: string };
 
   if (typeof url !== "string" || url.trim() === "") {
     return NextResponse.json({ error: "URL is required" }, { status: 400 });
@@ -71,30 +61,6 @@ export async function POST(request: Request) {
     );
   }
 
-  const validCategory =
-    typeof category === "string" &&
-    (CATEGORIES as readonly string[]).includes(category)
-      ? (category as Category)
-      : null;
-
-  if (!validCategory) {
-    return NextResponse.json(
-      { error: "A valid category is required" },
-      { status: 400 }
-    );
-  }
-
-  const cleanedCustomFields = Array.isArray(customFields)
-    ? customFields.map((f) => f.trim()).filter(Boolean)
-    : [];
-
-  if (validCategory === "custom" && cleanedCustomFields.length === 0) {
-    return NextResponse.json(
-      { error: "List at least one field to extract" },
-      { status: 400 }
-    );
-  }
-
   let page;
   try {
     page = await fetchPage(target.toString());
@@ -105,9 +71,24 @@ export async function POST(request: Request) {
     );
   }
 
+  let category, customFields;
+  try {
+    ({ category, customFields } = await detectCategory(page.bodyText));
+  } catch (err) {
+    return NextResponse.json(
+      {
+        error:
+          err instanceof Error
+            ? `Category detection failed: ${err.message}`
+            : "Category detection failed",
+      },
+      { status: 502 }
+    );
+  }
+
   let data: unknown;
   try {
-    data = await extractStructured(page.bodyText, validCategory, cleanedCustomFields);
+    data = await extractStructured(page.bodyText, category, customFields);
   } catch (err) {
     return NextResponse.json(
       {
@@ -122,7 +103,7 @@ export async function POST(request: Request) {
 
   let report = null;
   try {
-    report = await analyzeSnapshot(validCategory, data, null);
+    report = await analyzeSnapshot(category, data, null);
   } catch {
     // Baseline snapshot still gets saved even if the analysis step fails
   }
@@ -133,8 +114,8 @@ export async function POST(request: Request) {
     site = await prisma.watchedSite.create({
       data: {
         url: target.toString(),
-        category: validCategory,
-        customFields: cleanedCustomFields,
+        category,
+        customFields,
         snapshots: {
           create: {
             data: data as object,

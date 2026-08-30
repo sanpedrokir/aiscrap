@@ -64,6 +64,15 @@ function schemaFor(category: Category, customFields: string[]) {
   return category === "custom" ? buildCustomSchema(customFields) : SCHEMAS[category];
 }
 
+const CategoryDetectionSchema = z.object({
+  category: z.enum(CATEGORIES),
+  customFields: z
+    .array(z.string())
+    .describe(
+      'Only used when category is "custom": short field names to extract per item on the page (e.g. ["event name", "date", "venue"]). Leave empty otherwise.'
+    ),
+});
+
 let openai: OpenAI | null = null;
 
 function getOpenAI() {
@@ -124,6 +133,39 @@ export async function fetchPage(url: string): Promise<PageContent> {
   const bodyText = $("body").text().replace(/\s+/g, " ").trim();
 
   return { title, description, headings, links, bodyText };
+}
+
+export async function detectCategory(
+  bodyText: string
+): Promise<{ category: Category; customFields: string[] }> {
+  const truncated = bodyText.slice(0, 8000);
+
+  const response = await getOpenAI().responses.parse({
+    model: "gpt-5.6",
+    input: [
+      {
+        role: "user",
+        content: `Look at this page content and decide which kind of page it is: "shopping" (product listings), "news" (a single article), "jobs" (job listings), or "custom" (anything else). If "custom", pick 2-6 short, sensible field names to extract for each distinct item on the page.\n\n---\n${truncated}\n---`,
+      },
+    ],
+    text: {
+      format: zodTextFormat(CategoryDetectionSchema, "category_detection"),
+    },
+  });
+
+  const result = response.output_parsed;
+  if (!result) {
+    throw new Error("Category detection returned no result");
+  }
+  const customFields = result.customFields.map((f) => f.trim()).filter(Boolean);
+
+  return {
+    category: result.category,
+    customFields:
+      result.category === "custom" && customFields.length === 0
+        ? ["title", "detail"]
+        : customFields,
+  };
 }
 
 export async function extractStructured(

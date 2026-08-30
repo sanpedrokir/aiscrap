@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { CATEGORY_OPTIONS, type Category } from "@/lib/categories";
+import type { Category } from "@/lib/categories";
 import ExtractedData from "./ExtractedData";
 
 type ScrapeResult = {
@@ -15,36 +15,22 @@ type ScrapeResult = {
 };
 
 export default function QuickScrape() {
-  const [step, setStep] = useState<"url" | "category">("url");
   const [url, setUrl] = useState("");
-  const [category, setCategory] = useState<Category | null>(null);
-  const [customFieldsInput, setCustomFieldsInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ScrapeResult | null>(null);
 
-  function handleUrlSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    setResult(null);
-    setError(null);
-    setStep("category");
-  }
-
-  async function runScrape(chosenCategory: Category | null) {
     setLoading(true);
     setError(null);
     setResult(null);
-
-    const customFields = customFieldsInput
-      .split(",")
-      .map((f) => f.trim())
-      .filter(Boolean);
 
     try {
       const res = await fetch("/api/scrape", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url, category: chosenCategory, customFields }),
+        body: JSON.stringify({ url }),
       });
       const data = await res.json();
 
@@ -60,111 +46,30 @@ export default function QuickScrape() {
     }
   }
 
-  function reset() {
-    setStep("url");
-    setCategory(null);
-    setCustomFieldsInput("");
-    setResult(null);
-    setError(null);
-  }
-
   return (
     <div className="flex flex-col gap-8">
       <p className="text-zinc-600 dark:text-zinc-400">
-        Enter a URL, then tell me what to pull out of it. One-off - nothing is
-        saved.
+        Enter a URL. AI figures out what kind of page it is and pulls out the
+        relevant data. One-off - nothing is saved.
       </p>
 
-      {step === "url" && (
-        <form onSubmit={handleUrlSubmit} className="flex gap-2">
-          <input
-            type="url"
-            required
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://example.com"
-            className="flex-1 rounded-full border border-black/[.08] bg-white px-5 py-3 text-sm text-black outline-none focus:border-black/30 dark:border-white/[.145] dark:bg-black dark:text-zinc-50"
-          />
-          <button
-            type="submit"
-            className="rounded-full bg-foreground px-6 py-3 text-sm font-medium text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc]"
-          >
-            Next
-          </button>
-        </form>
-      )}
-
-      {step === "category" && (
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
-            <button
-              type="button"
-              onClick={reset}
-              className="underline hover:text-black dark:hover:text-zinc-50"
-            >
-              ← change URL
-            </button>
-            <span className="truncate">{url}</span>
-          </div>
-
-          <p className="text-sm font-medium text-black dark:text-zinc-50">
-            What do you want to extract?
-          </p>
-
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {CATEGORY_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setCategory(opt.value)}
-                className={`flex flex-col items-start gap-1 rounded-lg border px-4 py-3 text-left transition-colors ${
-                  category === opt.value
-                    ? "border-black bg-black/[.04] dark:border-white dark:bg-white/[.08]"
-                    : "border-black/[.08] hover:bg-black/[.02] dark:border-white/[.145] dark:hover:bg-white/[.04]"
-                }`}
-              >
-                <span className="font-medium text-black dark:text-zinc-50">
-                  {opt.label}
-                </span>
-                <span className="text-xs text-zinc-500">{opt.fields}</span>
-              </button>
-            ))}
-          </div>
-
-          {category === "custom" && (
-            <input
-              type="text"
-              value={customFieldsInput}
-              onChange={(e) => setCustomFieldsInput(e.target.value)}
-              placeholder="e.g. title, author, ISBN, price"
-              className="rounded-full border border-black/[.08] bg-white px-5 py-3 text-sm text-black outline-none focus:border-black/30 dark:border-white/[.145] dark:bg-black dark:text-zinc-50"
-            />
-          )}
-
-          <div className="flex gap-2">
-            <button
-              type="button"
-              disabled={
-                loading ||
-                !category ||
-                (category === "custom" && !customFieldsInput.trim())
-              }
-              onClick={() => runScrape(category)}
-              className="rounded-full bg-foreground px-6 py-3 text-sm font-medium text-background transition-colors hover:bg-[#383838] disabled:opacity-50 dark:hover:bg-[#ccc]"
-            >
-              {loading ? "Scraping…" : "Scrape"}
-            </button>
-            <button
-              type="button"
-              disabled={loading}
-              onClick={() => runScrape(null)}
-              className="rounded-full border border-black/[.08] px-6 py-3 text-sm font-medium text-black transition-colors hover:bg-black/[.04] disabled:opacity-50 dark:border-white/[.145] dark:text-zinc-50 dark:hover:bg-white/[.04]"
-            >
-              Skip - just scrape the basics
-            </button>
-          </div>
-        </div>
-      )}
+      <form onSubmit={handleSubmit} className="flex gap-2">
+        <input
+          type="url"
+          required
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="https://example.com"
+          className="flex-1 rounded-full border border-black/[.08] bg-white px-5 py-3 text-sm text-black outline-none focus:border-black/30 dark:border-white/[.145] dark:bg-black dark:text-zinc-50"
+        />
+        <button
+          type="submit"
+          disabled={loading}
+          className="rounded-full bg-foreground px-6 py-3 text-sm font-medium text-background transition-colors hover:bg-[#383838] disabled:opacity-50 dark:hover:bg-[#ccc]"
+        >
+          {loading ? "Scraping…" : "Scrape"}
+        </button>
+      </form>
 
       {error && (
         <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { CATEGORY_OPTIONS, type Category } from "@/lib/categories";
+import type { Category } from "@/lib/categories";
 import ExtractedData from "./ExtractedData";
 
 type Change = { type: "added" | "removed" | "updated"; description: string };
@@ -30,8 +30,6 @@ export default function MonitoringAgent() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [url, setUrl] = useState("");
-  const [category, setCategory] = useState<Category | null>(null);
-  const [customFieldsInput, setCustomFieldsInput] = useState("");
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
 
@@ -56,21 +54,15 @@ export default function MonitoringAgent() {
 
   async function handleAdd(e: FormEvent) {
     e.preventDefault();
-    if (!category) return;
 
     setAdding(true);
     setAddError(null);
-
-    const customFields = customFieldsInput
-      .split(",")
-      .map((f) => f.trim())
-      .filter(Boolean);
 
     try {
       const res = await fetch("/api/sites", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url, category, customFields }),
+        body: JSON.stringify({ url }),
       });
       const data = await res.json();
 
@@ -81,8 +73,6 @@ export default function MonitoringAgent() {
 
       setSites((prev) => (prev ? [data, ...prev] : [data]));
       setUrl("");
-      setCategory(null);
-      setCustomFieldsInput("");
     } catch {
       setAddError("Something went wrong");
     } finally {
@@ -138,43 +128,9 @@ export default function MonitoringAgent() {
           className="rounded-full border border-black/[.08] bg-white px-5 py-3 text-sm text-black outline-none focus:border-black/30 dark:border-white/[.145] dark:bg-black dark:text-zinc-50"
         />
 
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {CATEGORY_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => setCategory(opt.value)}
-              className={`flex flex-col items-start gap-1 rounded-lg border px-4 py-3 text-left transition-colors ${
-                category === opt.value
-                  ? "border-black bg-black/[.04] dark:border-white dark:bg-white/[.08]"
-                  : "border-black/[.08] hover:bg-black/[.02] dark:border-white/[.145] dark:hover:bg-white/[.04]"
-              }`}
-            >
-              <span className="font-medium text-black dark:text-zinc-50">
-                {opt.label}
-              </span>
-              <span className="text-xs text-zinc-500">{opt.fields}</span>
-            </button>
-          ))}
-        </div>
-
-        {category === "custom" && (
-          <input
-            type="text"
-            value={customFieldsInput}
-            onChange={(e) => setCustomFieldsInput(e.target.value)}
-            placeholder="e.g. title, author, ISBN, price"
-            className="rounded-full border border-black/[.08] bg-white px-5 py-3 text-sm text-black outline-none focus:border-black/30 dark:border-white/[.145] dark:bg-black dark:text-zinc-50"
-          />
-        )}
-
         <button
           type="submit"
-          disabled={
-            adding ||
-            !category ||
-            (category === "custom" && !customFieldsInput.trim())
-          }
+          disabled={adding}
           className="self-start rounded-full bg-foreground px-6 py-3 text-sm font-medium text-background transition-colors hover:bg-[#383838] disabled:opacity-50 dark:hover:bg-[#ccc]"
         >
           {adding ? "Adding…" : "Start watching"}

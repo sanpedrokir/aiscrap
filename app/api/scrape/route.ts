@@ -1,13 +1,9 @@
 import { NextResponse } from "next/server";
-import { CATEGORIES, extractStructured, fetchPage, type Category } from "@/lib/scrape";
+import { detectCategory, extractStructured, fetchPage, type Category } from "@/lib/scrape";
 
 export async function POST(request: Request) {
   const body = await request.json();
-  const { url, category, customFields } = body as {
-    url?: string;
-    category?: string;
-    customFields?: string[];
-  };
+  const { url } = body as { url?: string };
 
   if (typeof url !== "string" || url.trim() === "") {
     return NextResponse.json({ error: "URL is required" }, { status: 400 });
@@ -27,23 +23,6 @@ export async function POST(request: Request) {
     );
   }
 
-  const validCategory: Category | null =
-    typeof category === "string" &&
-    (CATEGORIES as readonly string[]).includes(category)
-      ? (category as Category)
-      : null;
-
-  const cleanedCustomFields = Array.isArray(customFields)
-    ? customFields.map((f) => f.trim()).filter(Boolean)
-    : [];
-
-  if (validCategory === "custom" && cleanedCustomFields.length === 0) {
-    return NextResponse.json(
-      { error: "List at least one field to extract" },
-      { status: 400 }
-    );
-  }
-
   let page;
   try {
     page = await fetchPage(target.toString());
@@ -54,18 +33,19 @@ export async function POST(request: Request) {
     );
   }
 
+  let category: Category | null = null;
   let ai: unknown = null;
   let aiError: string | null = null;
 
-  if (validCategory) {
-    try {
-      ai = await extractStructured(page.bodyText, validCategory, cleanedCustomFields);
-    } catch (err) {
-      aiError =
-        err instanceof Error
-          ? `AI extraction failed: ${err.message}`
-          : "AI extraction failed";
-    }
+  try {
+    const detected = await detectCategory(page.bodyText);
+    category = detected.category;
+    ai = await extractStructured(page.bodyText, detected.category, detected.customFields);
+  } catch (err) {
+    aiError =
+      err instanceof Error
+        ? `AI extraction failed: ${err.message}`
+        : "AI extraction failed";
   }
 
   return NextResponse.json({
@@ -73,7 +53,7 @@ export async function POST(request: Request) {
     description: page.description,
     headings: page.headings,
     links: page.links,
-    category: validCategory,
+    category,
     ai,
     aiError,
   });
