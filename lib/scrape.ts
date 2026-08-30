@@ -199,48 +199,57 @@ export async function extractStructured(
   return response.output_parsed;
 }
 
-const ChangeReportSchema = z.object({
+const AnalysisSchema = z.object({
   summary: z
     .string()
     .describe(
-      "2-4 sentence human-readable summary of the current state, or of what changed since the last check"
+      "2-4 sentence plain-language summary of what this data contains and what stands out"
     ),
-  changes: z.array(
-    z.object({
-      type: z.enum(["added", "removed", "updated"]),
-      description: z.string(),
+  highlights: z
+    .array(
+      z.object({
+        label: z
+          .string()
+          .describe(
+            'Short theme or issue name, e.g. "Shipping complaints", "Salary outlier", "Breaking development"'
+          ),
+        detail: z.string(),
+      })
+    )
+    .describe(
+      "Key themes, recurring issues, or standout items drawn from the data - e.g. grouped complaint themes for reviews, notable listings for jobs/products, key facts for an article"
+    ),
+  sentiment: z
+    .object({
+      overall: z.enum(["positive", "negative", "mixed", "neutral"]),
+      detail: z.string().describe("Why this sentiment was assigned"),
     })
-  ),
-  flagged: z.array(
-    z.object({
-      reason: z
-        .string()
-        .describe("Why this item is worth the user's attention"),
-      detail: z.string(),
-    })
-  ),
+    .nullable()
+    .describe(
+      "Overall sentiment expressed in the content, only if it expresses opinions, reviews, or feedback (e.g. customer reviews, comments, an opinion piece). Null if not applicable, such as a plain product or job listing page."
+    ),
+  recommendedActions: z
+    .array(z.string())
+    .describe(
+      "Concrete next steps or actions worth taking based on this data, e.g. 'Address recurring complaints about X', 'This listing is priced well below comparable ones - worth a closer look', 'No action needed - nothing notable'"
+    ),
 });
 
-export type ChangeReport = z.infer<typeof ChangeReportSchema>;
+export type Analysis = z.infer<typeof AnalysisSchema>;
 
-export async function analyzeSnapshot(
+export async function analyzeContent(
   category: Category,
-  currentData: unknown,
-  previousData: unknown | null
-): Promise<ChangeReport | null> {
-  const prompt = previousData
-    ? `You are monitoring this page for a user. Compare the PREVIOUS extracted snapshot to the CURRENT one below. Identify what was added, removed, or updated. Write a short summary of what changed, and flag anything that seems worth the user's attention (e.g. a steep price drop, a new listing matching common criteria, an urgent or breaking item, a significant shift). If nothing meaningfully changed, say so plainly and leave changes/flagged empty.\n\nPREVIOUS:\n${JSON.stringify(
-        previousData
-      ).slice(0, 8000)}\n\nCURRENT:\n${JSON.stringify(currentData).slice(0, 8000)}`
-    : `You are setting up monitoring for this page for a user. This is the first check, so there's nothing to compare against yet. Summarize what was found, and flag anything immediately notable (e.g. a deal, an urgent listing, a striking figure).\n\nCURRENT:\n${JSON.stringify(
-        currentData
-      ).slice(0, 8000)}`;
+  data: unknown
+): Promise<Analysis | null> {
+  const prompt = `You are analyzing data extracted from a scraped web page for a user. Interpret it, don't just repeat it: summarize what's there, group any recurring themes or issues (e.g. complaint themes, standout deals or listings, key facts), assess overall sentiment if the content expresses opinions or feedback (otherwise leave sentiment null), and recommend concrete next actions.\n\nCATEGORY: ${category}\n\nDATA:\n${JSON.stringify(
+    data
+  ).slice(0, 12000)}`;
 
   const response = await getOpenAI().responses.parse({
     model: "gpt-5.6",
     input: [{ role: "user", content: prompt }],
     text: {
-      format: zodTextFormat(ChangeReportSchema, "change_report"),
+      format: zodTextFormat(AnalysisSchema, "analysis"),
     },
   });
 

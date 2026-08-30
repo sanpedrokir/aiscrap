@@ -2,19 +2,19 @@
 
 import { useState, type FormEvent } from "react";
 import type { Category } from "@/lib/categories";
+import AnalysisPanel, { type Analysis } from "./Analysis";
 import ExtractedData from "./ExtractedData";
 
 type ScrapeResult = {
   title: string | null;
-  description: string | null;
-  headings: string[];
-  links: { text: string; href: string }[];
   category: Category | null;
-  ai: unknown;
-  aiError: string | null;
+  data: unknown;
+  dataError: string | null;
+  analysis: Analysis | null;
+  analysisError: string | null;
 };
 
-export default function QuickScrape() {
+export default function Scraper() {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,8 +49,9 @@ export default function QuickScrape() {
   return (
     <div className="flex flex-col gap-8">
       <p className="text-zinc-600 dark:text-zinc-400">
-        Enter a URL. AI figures out what kind of page it is and pulls out the
-        relevant data. One-off - nothing is saved.
+        Enter a URL. AI scrapes the page, figures out what kind of content it
+        is, and interprets it - key themes, sentiment, and recommended
+        actions, not just raw data.
       </p>
 
       <form onSubmit={handleSubmit} className="flex gap-2">
@@ -88,59 +89,23 @@ export default function QuickScrape() {
             </p>
           </div>
 
-          {result.description && (
-            <div>
-              <h2 className="text-sm font-medium uppercase tracking-wide text-zinc-500">
-                Description
-              </h2>
-              <p className="text-black dark:text-zinc-50">
-                {result.description}
-              </p>
-            </div>
-          )}
-
-          {result.aiError && (
+          {result.dataError && (
             <p className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-300">
-              {result.aiError}
+              {result.dataError}
             </p>
           )}
 
-          {result.ai != null && result.category && (
-            <ExtractedData category={result.category} data={result.ai} />
+          {result.analysisError && (
+            <p className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+              {result.analysisError}
+            </p>
           )}
 
-          <div>
-            <h2 className="text-sm font-medium uppercase tracking-wide text-zinc-500">
-              Headings ({result.headings.length})
-            </h2>
-            <ul className="mt-2 flex flex-col gap-1">
-              {result.headings.map((heading, i) => (
-                <li key={i} className="text-black dark:text-zinc-50">
-                  {heading}
-                </li>
-              ))}
-            </ul>
-          </div>
+          {result.analysis && <AnalysisPanel analysis={result.analysis} />}
 
-          <div>
-            <h2 className="text-sm font-medium uppercase tracking-wide text-zinc-500">
-              Links ({result.links.length})
-            </h2>
-            <ul className="mt-2 flex flex-col gap-1">
-              {result.links.map((link, i) => (
-                <li key={i} className="truncate">
-                  <a
-                    href={link.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:underline dark:text-blue-400"
-                  >
-                    {link.text}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
+          {result.data != null && result.category && (
+            <ExtractedData category={result.category} data={result.data} />
+          )}
         </div>
       )}
     </div>

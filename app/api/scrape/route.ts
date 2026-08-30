@@ -1,5 +1,12 @@
 import { NextResponse } from "next/server";
-import { detectCategory, extractStructured, fetchPage, type Category } from "@/lib/scrape";
+import {
+  analyzeContent,
+  detectCategory,
+  extractStructured,
+  fetchPage,
+  type Analysis,
+  type Category,
+} from "@/lib/scrape";
 
 export async function POST(request: Request) {
   const body = await request.json();
@@ -34,27 +41,36 @@ export async function POST(request: Request) {
   }
 
   let category: Category | null = null;
-  let ai: unknown = null;
-  let aiError: string | null = null;
+  let data: unknown = null;
+  let dataError: string | null = null;
 
   try {
     const detected = await detectCategory(page.bodyText);
     category = detected.category;
-    ai = await extractStructured(page.bodyText, detected.category, detected.customFields);
+    data = await extractStructured(page.bodyText, detected.category, detected.customFields);
   } catch (err) {
-    aiError =
-      err instanceof Error
-        ? `AI extraction failed: ${err.message}`
-        : "AI extraction failed";
+    dataError =
+      err instanceof Error ? `AI extraction failed: ${err.message}` : "AI extraction failed";
+  }
+
+  let analysis: Analysis | null = null;
+  let analysisError: string | null = null;
+
+  if (data !== null && category !== null) {
+    try {
+      analysis = await analyzeContent(category, data);
+    } catch (err) {
+      analysisError =
+        err instanceof Error ? `AI analysis failed: ${err.message}` : "AI analysis failed";
+    }
   }
 
   return NextResponse.json({
     title: page.title,
-    description: page.description,
-    headings: page.headings,
-    links: page.links,
     category,
-    ai,
-    aiError,
+    data,
+    dataError,
+    analysis,
+    analysisError,
   });
 }
