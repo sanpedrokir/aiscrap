@@ -61,7 +61,14 @@ function buildCustomSchema(fields: string[]) {
   });
 }
 
-const openai = new OpenAI();
+let openai: OpenAI | null = null;
+
+function getOpenAI() {
+  if (!openai) {
+    openai = new OpenAI();
+  }
+  return openai;
+}
 
 async function extractWithAI(
   bodyText: string,
@@ -80,7 +87,7 @@ async function extractWithAI(
         )}. One entry per distinct item. If an attribute isn't present for an item, use null.`
       : PROMPTS[category];
 
-  const response = await openai.responses.parse({
+  const response = await getOpenAI().responses.parse({
     model: "gpt-5.6",
     input: [
       {
