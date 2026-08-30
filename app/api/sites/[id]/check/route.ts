@@ -7,17 +7,30 @@ export async function POST(
   ctx: RouteContext<"/api/sites/[id]/check">
 ) {
   const { id } = await ctx.params;
-  const prisma = getPrisma();
 
-  const site = await prisma.watchedSite.findUnique({
-    where: { id },
-    include: {
-      snapshots: {
-        orderBy: { createdAt: "desc" },
-        take: 1,
+  let site;
+  try {
+    const prisma = getPrisma();
+    site = await prisma.watchedSite.findUnique({
+      where: { id },
+      include: {
+        snapshots: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
       },
-    },
-  });
+    });
+  } catch (err) {
+    return NextResponse.json(
+      {
+        error:
+          err instanceof Error
+            ? `Database error: ${err.message}`
+            : "Database error",
+      },
+      { status: 500 }
+    );
+  }
 
   if (!site) {
     return NextResponse.json({ error: "Site not found" }, { status: 404 });
@@ -65,15 +78,29 @@ export async function POST(
     // New snapshot still gets saved even if the analysis step fails
   }
 
-  const snapshot = await prisma.snapshot.create({
-    data: {
-      siteId: site.id,
-      data: data as object,
-      summary: report?.summary ?? null,
-      changes: report?.changes ?? [],
-      flagged: report?.flagged ?? [],
-    },
-  });
+  let snapshot;
+  try {
+    const prisma = getPrisma();
+    snapshot = await prisma.snapshot.create({
+      data: {
+        siteId: site.id,
+        data: data as object,
+        summary: report?.summary ?? null,
+        changes: report?.changes ?? [],
+        flagged: report?.flagged ?? [],
+      },
+    });
+  } catch (err) {
+    return NextResponse.json(
+      {
+        error:
+          err instanceof Error
+            ? `Database error: ${err.message}`
+            : "Database error",
+      },
+      { status: 500 }
+    );
+  }
 
   return NextResponse.json(snapshot);
 }

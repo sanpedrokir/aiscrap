@@ -6,12 +6,20 @@ export async function DELETE(
   ctx: RouteContext<"/api/sites/[id]">
 ) {
   const { id } = await ctx.params;
-  const prisma = getPrisma();
 
   try {
+    const prisma = getPrisma();
     await prisma.watchedSite.delete({ where: { id } });
-  } catch {
-    return NextResponse.json({ error: "Site not found" }, { status: 404 });
+  } catch (err) {
+    return NextResponse.json(
+      {
+        error:
+          err instanceof Error
+            ? `Failed to delete: ${err.message}`
+            : "Failed to delete",
+      },
+      { status: 404 }
+    );
   }
 
   return NextResponse.json({ ok: true });

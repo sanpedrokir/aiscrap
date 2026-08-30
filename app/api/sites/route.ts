@@ -9,16 +9,29 @@ import {
 } from "@/lib/scrape";
 
 export async function GET() {
-  const prisma = getPrisma();
-  const sites = await prisma.watchedSite.findMany({
-    orderBy: { createdAt: "desc" },
-    include: {
-      snapshots: {
-        orderBy: { createdAt: "desc" },
-        take: 1,
+  let sites;
+  try {
+    const prisma = getPrisma();
+    sites = await prisma.watchedSite.findMany({
+      orderBy: { createdAt: "desc" },
+      include: {
+        snapshots: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
       },
-    },
-  });
+    });
+  } catch (err) {
+    return NextResponse.json(
+      {
+        error:
+          err instanceof Error
+            ? `Database error: ${err.message}`
+            : "Database error",
+      },
+      { status: 500 }
+    );
+  }
 
   return NextResponse.json({
     sites: sites.map((site) => ({
@@ -114,23 +127,36 @@ export async function POST(request: Request) {
     // Baseline snapshot still gets saved even if the analysis step fails
   }
 
-  const prisma = getPrisma();
-  const site = await prisma.watchedSite.create({
-    data: {
-      url: target.toString(),
-      category: validCategory,
-      customFields: cleanedCustomFields,
-      snapshots: {
-        create: {
-          data: data as object,
-          summary: report?.summary ?? null,
-          changes: report?.changes ?? [],
-          flagged: report?.flagged ?? [],
+  let site;
+  try {
+    const prisma = getPrisma();
+    site = await prisma.watchedSite.create({
+      data: {
+        url: target.toString(),
+        category: validCategory,
+        customFields: cleanedCustomFields,
+        snapshots: {
+          create: {
+            data: data as object,
+            summary: report?.summary ?? null,
+            changes: report?.changes ?? [],
+            flagged: report?.flagged ?? [],
+          },
         },
       },
-    },
-    include: { snapshots: true },
-  });
+      include: { snapshots: true },
+    });
+  } catch (err) {
+    return NextResponse.json(
+      {
+        error:
+          err instanceof Error
+            ? `Database error: ${err.message}`
+            : "Database error",
+      },
+      { status: 500 }
+    );
+  }
 
   return NextResponse.json({
     id: site.id,
