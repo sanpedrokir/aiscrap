@@ -1,7 +1,7 @@
-import Anthropic from "@anthropic-ai/sdk";
-import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import * as cheerio from "cheerio";
 import { NextResponse } from "next/server";
+import OpenAI from "openai";
+import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
 
 const CATEGORIES = ["shopping", "news", "jobs", "custom"] as const;
@@ -61,7 +61,7 @@ function buildCustomSchema(fields: string[]) {
   });
 }
 
-const anthropic = new Anthropic();
+const openai = new OpenAI();
 
 async function extractWithAI(
   bodyText: string,
@@ -80,21 +80,20 @@ async function extractWithAI(
         )}. One entry per distinct item. If an attribute isn't present for an item, use null.`
       : PROMPTS[category];
 
-  const response = await anthropic.messages.parse({
-    model: "claude-opus-5",
-    max_tokens: 4096,
-    messages: [
+  const response = await openai.responses.parse({
+    model: "gpt-5.6",
+    input: [
       {
         role: "user",
         content: `${prompt}\n\nThe page content may be messy or unstructured - use your judgment.\n\n---\n${truncated}\n---`,
       },
     ],
-    output_config: {
-      format: zodOutputFormat(schema),
+    text: {
+      format: zodTextFormat(schema, "extraction"),
     },
   });
 
-  return response.parsed_output;
+  return response.output_parsed;
 }
 
 export async function POST(request: Request) {
@@ -199,7 +198,7 @@ export async function POST(request: Request) {
       ai = await extractWithAI(bodyText, validCategory, cleanedCustomFields);
     } catch (err) {
       aiError =
-        err instanceof Anthropic.APIError
+        err instanceof OpenAI.APIError
           ? `AI extraction failed: ${err.message}`
           : "AI extraction failed";
     }
